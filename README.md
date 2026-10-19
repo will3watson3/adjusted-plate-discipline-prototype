@@ -1,65 +1,54 @@
 # Adjusted Plate Discipline +
 ### Prototype With Next Game State Valuation
 
-A research baseline for describing a hitter's season-average swing/take decision quality. It estimates the value of **both actions on each supported pitch**, compares the recorded choice with a contextual league policy, and aggregates those comparisons into a descriptive hitter score.
+A research prototype that estimates the value of swinging versus taking each pitch, then summarizes a hitter's recorded choices relative to a contextual league policy.
 
-**Status:** working prototype with exploratory 2025 results. These are provisional model-based rankings, not established causal measures of plate discipline. Current-pitch hits, home runs, exit velocity and launch angle do not directly reward a decision.
+```text
+Pitch + game state + past player information
+  ├─ Swing: whiff / foul / caught tip / ball-in-play probabilities and values
+  └─ Take: called-strike probability, adjusted for catcher and umpire
+       ↓
+Outcome value = runs scored + RE(resulting runners, outs and count)
+       ↓
+Pitch score = (actual swing − league swing probability) × (swing value − take value)
+       ↓
+Supported-pitch season average → runs per 100 → Decision+
+```
 
-## Start here
+Actual swing is 1 for a swing and 0 for a take. Current-pitch home runs, exit velocity and launch angle do not directly reward the decision. Decision+ uses a fixed 2024 reference: 100 is the qualified hitter average; 10 points equal one reference standard deviation. Qualification requires 500 supported pitches, 60 games and 70% coverage.
+
+## Run
+
+Requires R >= 4.4, Python >= 3.9 and curl.
 
 ```bash
-# Requires R >= 4.4, Python >= 3.9, and curl.
 Rscript scripts/install_dependencies.R
 python3 scripts/check.py
 Rscript examples/decision_score_demo.R
 python3 scripts/reproduce.py --plan
 ```
 
-An optional GitHub Actions workflow is provided at [`docs/ci/offline-checks.yml`](docs/ci/offline-checks.yml); copy it to `.github/workflows/check.yml` to enable hosted CI. Local checks run independently of GitHub Actions.
+The checks and synthetic example need no MLB data. A full rebuild downloads multiple seasons and runs substantial fits; see [reproduction instructions](docs/REPRODUCING.md).
 
-The example is synthetic and works without MLB downloads or fitted artifacts. `check.py` runs offline tests; it does not download data or refit the full MLB models. For a complete historical rebuild, follow [reproduction instructions](docs/REPRODUCING.md). That process downloads several seasons and runs substantial model fits; it is not a quickstart.
+## Code guide
 
-## How the score works
+- [Architecture](docs/ARCHITECTURE.md): inputs and responsibility of each model.
+- [model/](model/): acquisition, state values, swing/take models, support checks and hitter aggregation.
+- [model/current_hitter_stat.R](model/current_hitter_stat.R): current hitter-score entry point after rebuilding artifacts.
+- [scripts/](scripts/): dependency setup, offline checks and staged rebuilds.
+- [examples/](examples/): synthetic scoring example.
+- [Source manifest](docs/source_manifest.csv): hashes of preserved source, protocols and tests.
 
-```text
-Pitch + game state + past player information
-  ├─ Swing model → P(whiff / foul / caught tip / ball in play) + expected BIP value
-  └─ Take model  → P(called strike), adjusted for catcher, umpire and calibration
-                        ↓
-          runs scored + RE(resulting runners / outs / count)
-                        ↓
-          gap = expected swing value − expected take value
-                        ↓
-      pitch score = (actual swing − league swing probability) × gap
-                        ↓
-          supported-pitch season mean × 100 = runs per 100
-                        ↓
-          Decision+ = 100 + 10 × standardized 2024-reference deviation
-```
+## Results and limits
 
-Actual swing is 1 for a swing and 0 for a take. The league swing probability is a contextual benchmark, not a claim that league choices are optimal. Higher values mean better modeled choices relative to that policy on the pitches faced.
+The exploratory 2025 snapshot contains **542,384 supported pitches and 339 qualified hitters**. Regional umpire effects improved supported-take log loss from **0.224218 to 0.223287**. Take-value RMSE changed from **0.046605 to 0.046538 runs**, but its paired error interval included zero. The original integration passed 9 unit and 52 artifact checks; a fresh clone must rebuild its own artifacts for artifact verification.
 
-**Decision+ is a display scale:** 100 is the exposure-weighted qualified 2024 average; 10 points equal one 2024 reference standard deviation, not 10% improvement. Qualification requires 500 supported pitches, 60 games with supported pitches and 70% coverage. Full-season averages are unshrunk; half-season stability is not a current release criterion.
+These are provisional descriptive rankings. Unchosen actions are unobserved, 2025 is no longer an untouched test, and uncertainty is conditional. The frozen RE288 baseline has 34 flagged states excluded from primary scores; unsupported BIP extrapolations are also excluded. Small ranking differences should not be treated as established skill differences. The next research priorities are improving state valuations and BIP predictions. Same-pitch observed xBA is not a scoring input. Applying the model to 2026 requires zone/coordinate harmonization.
 
-## Repository map
+Raw data, fitted models, libraries and generated reports are excluded. The original model source and historical protocols remain unchanged; run individual modules from `model/` or use the rebuild runner.
 
-| Location | Purpose |
-| --- | --- |
-| [model/](model/README.md) | Preserved model modules, public-data acquisition, frozen experiment protocols and associated tests |
-| [scripts/](scripts/) | Dependency installation, offline checks, staged rebuild orchestration and source-integrity checks |
-| [examples/decision_score_demo.R](examples/decision_score_demo.R) | Small, explicitly synthetic valuation/decision example |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Inputs and responsibility of each component |
-| [docs/REPRODUCING.md](docs/REPRODUCING.md) | Environment, data requirements, execution order and reproducibility limits |
-| [docs/BASELINE_STATUS.md](docs/BASELINE_STATUS.md) | Measured results, exclusions, uncertainty and unfinished work |
-| [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md) | Planned RE/BIP work and the xBA leakage boundary |
-| [docs/source_manifest.csv](docs/source_manifest.csv) | SHA-256 provenance of every preserved source/protocol/test file |
+## Sources
 
-## Baseline evidence
+[baseballr](https://billpetti.github.io/baseballr/) · [Baseball Savant](https://baseballsavant.mlb.com/) · [MLB game feeds](https://statsapi.mlb.com/api/v1/game/745444/boxscore) · [mgcv](https://stat.ethz.ch/R-manual/R-patched/library/mgcv/html/mgcv-package.html)
 
-The existing 2025 exploratory snapshot contains **704,987 eligible pitches, 542,384 supported comparisons and 339 qualified hitters**. Adding regional umpire effects improved supported-take log loss from **0.224218 to 0.223287**. Factual take-value RMSE moved from **0.046605 to 0.046538 runs**, but the paired MSE interval included zero. The requested descriptive integration passed 9 unit and 52 artifact checks in the original workspace. Those counts describe that snapshot; a code-only clone must rebuild its own artifacts before running artifact verification.
-
-See [aggregate evidence](docs/baseline_metrics.json) and [limitations](docs/BASELINE_STATUS.md). Raw pitch exports, game-response caches, fitted model RDS files, full hitter tables, local libraries and exploratory/discarded runs are intentionally not distributed. This repository has no bundled MLB data or pretrained scoring endpoint.
-
-## Data sources and attribution
-
-Data acquisition uses [baseballr](https://billpetti.github.io/baseballr/), [Baseball Savant](https://baseballsavant.mlb.com/), and public [MLB game feeds](https://statsapi.mlb.com/api/v1/game/745444/boxscore). Fitting uses R's [mgcv](https://stat.ethz.ch/R-manual/R-patched/library/mgcv/html/mgcv-package.html), data.table and a glmnet reference implementation in solver tests. Data providers' terms and software licenses remain their own; this repository does not relicense their data or dependencies. No software distribution license has been selected for the prototype.
+Third-party data and dependencies retain their own terms and licenses. No distribution license has been selected for this prototype.

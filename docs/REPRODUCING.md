@@ -1,12 +1,12 @@
 # Reproducing the baseline
 
-## Environment and scope
+## Environment
 
-Use R >= 4.4, Python >= 3.9 and curl. R dependencies: data.table, mgcv, glmnet (reference solver/tests) and baseballr >= 2.0.0 (public-data acquisition). `scripts/install_dependencies.R` checks versions and installs missing/older packages to `model/.R-library/`. It also records the resolved session locally. Python acquisition and orchestration use only the standard library.
+Use R >= 4.4, Python >= 3.9 and curl. `scripts/install_dependencies.R` installs missing/older R dependencies to `model/.R-library/`: data.table, mgcv, glmnet and baseballr >= 2.0.0. Python scripts use only the standard library.
 
-The source snapshot was exercised with R 4.4.2, data.table 1.18.2.1, mgcv 1.9-1, glmnet 4.1-10 and project-local baseballr 2.0.0; see `environment_tested.json`. The installer uses compatible available releases, not a fabricated exact lockfile. This is **source/method reproducibility**, not a claim of byte-identical output from every OS, dependency version or later MLB export. Save your resolved environment, raw response hashes and generated manifests for exact local replay. Full historical reacquisition/refitting is not executed as part of this publication task.
+The source snapshot was tested with R 4.4.2, data.table 1.18.2.1, mgcv 1.9-1, glmnet 4.1-10 and baseballr 2.0.0. The installer resolves compatible available releases; it is not an exact dependency lock. Save the resolved session, raw responses and generated manifests for local replay. A later MLB export or different environment may change results or trigger a snapshot verification failure.
 
-## Offline quickstart
+## Offline checks
 
 From the repository root:
 
@@ -16,61 +16,34 @@ python3 scripts/check.py
 Rscript examples/decision_score_demo.R
 ```
 
-Tests use generated fixtures and make no network requests. Acquisition extractors are tested with synthetic API payloads. Offline tests intentionally exclude checks that read actual RE tables, player histories or production fits. After running a test, ignored directories under `model/reports/` are normal.
+The offline suite uses generated fixtures and makes no network requests. Other tests under `model/tests/` require rebuilt RE tables, player profiles or fitted models. No hosted CI workflow is enabled.
 
-## Complete historical rebuild
+## Historical rebuild
 
-First review the plan without running downloads:
+Preview exact commands with `python3 scripts/reproduce.py --plan`. Run stages in this order:
 
-```bash
-python3 scripts/reproduce.py --plan
+```text
+data → expectancy → strike → swing → validation → evaluation
+     → framing → calibration → umpires → hitters
 ```
 
-Then run stages in order, or use `--all` to explicitly opt into all downloads and expensive fits:
+Execute an individual stage with `python3 scripts/reproduce.py --stage data`, replacing `data` with the desired stage. `python3 scripts/reproduce.py --all` explicitly runs every stage, including downloads and expensive fits. Expect several GB of local data/artifacts and substantial runtime. Full historical reacquisition was not rerun for this publication.
 
-```bash
-python3 scripts/reproduce.py --stage data
-python3 scripts/reproduce.py --stage expectancy
-python3 scripts/reproduce.py --stage strike
-python3 scripts/reproduce.py --stage swing
-python3 scripts/reproduce.py --stage validation
-python3 scripts/reproduce.py --stage evaluation
-python3 scripts/reproduce.py --stage framing
-python3 scripts/reproduce.py --stage calibration
-python3 scripts/reproduce.py --stage umpires
-python3 scripts/reproduce.py --stage hitters
-```
+The runner works from `model/`, records commands and exit codes under `model/reports/reproduction/`, and stops on failure. Scripts retain their own caches and guards; inspect failures before retrying or choosing a documented resume path. Never edit code during a frozen run. Artifact verifiers deliberately check snapshot counts and source/data hashes; do not bypass a mismatch.
 
-Each command runs from `model/`, creates ignored local output folders and stops on the first failing command. The runner records commands, execution timestamps and exit codes in `model/reports/reproduction/`. Inspect failure diagnostics before retrying. Never edit code during a frozen artifact run. Reruns use the scripts' own caches and guards; some historic entry points require an explicit resume path rather than blind repetition. Use `--plan` to see exact commands.
+The data stage acquires 2021-2025 completed regular seasons, cleans/deduplicates pitch keys and saves complete event tables, ordinary-pitch subsets, profiles and audits. Downloads can change or fail; missing games must remain explicit. Data, reports, caches, libraries and model RDS files are ignored by Git.
 
-Data stage downloads 2021-2025 completed regular seasons in cached three-day windows, verifies one row per `game_pk + at_bat_number + pitch_number`, and creates clean/full and ordinary-analysis tables, player splits, game cohorts and audit files. Expect several GB of data and model artifacts and substantial runtime. Public APIs can change, requests can fail, raw exports can be revised, and missing games must not be silently ignored. Downloading current historical feeds is not guaranteed to reproduce old input hashes or exact old cohort counts; the snapshot artifact verifiers deliberately stop on such changes for review.
+`model/*_PLAN.md` files preserve historical experiment protocols. Original 2024 gates and the guarded 2025 opening remain because later artifacts depend on them. Their half-season gate belongs to that historical experiment, not the current season-average target. **2025 is already inspected exploratory data.** Rebuilding it does not create an independent holdout.
 
-The historical evaluation stage retains original 2024 release checks and the guarded 2025-opening mechanism because subsequent artifacts depend on it. Its original half-season gate belongs to that legacy experiment, not the current v6 season-average target. In today's project, 2025 is already inspected exploratory data, regardless of the legacy function name. Do not bypass a failed historical guard merely to obtain v6 output.
+The v3 calibration module supplies shared helpers; its complete experimental correction stack is not applied to v6. The current scorer uses the selected umpire-by-region model, replacing original framing rather than counting it twice. Rebuild manifests in this checkout; do not import frozen manifests from another working directory.
 
-The calibration stage reconstructs the historically selected v4 correction. The v3 whole-stack calibration experiment is not promoted or applied to the v6 swing values; its module supplies shared helper functions. Regional umpire effects replace original framing rather than being counted twice.
-
-## Read rebuilt hitter scores
-
-After the final artifact verifier and activation succeed:
+## Read the rebuilt results
 
 ```r
 setwd('model')
 .libPaths(c(normalizePath('.R-library', mustWork=FALSE), .libPaths()))
 source('current_hitter_stat.R')
 current_hitter_stat(2025)
-current_hitter_stat(2025, qualified_only=FALSE)
 ```
 
-Primary files:
-
-- `model/reports/hitter_stat_v6/qualified_hitters_2025.csv`
-- `model/reports/hitter_stat_v6/hitters_2025.csv`
-- `model/reports/hitter_stat_v6/uncertainty_components_2025.csv`
-- `model/reports/hitter_stat_v6/sampling_sensitivity_2025.csv`
-- `model/data/models/current_hitter_stat.rds`
-
-Artifact tests are distinct from offline CI. They require locally rebuilt data, models and manifests and include expected snapshot counts. They cannot run from a code-only clone before rebuilding. No data or model download happens just by importing the current-score reader.
-
-## Optional hosted CI
-
-`docs/ci/offline-checks.yml` is a ready-to-use GitHub Actions template. Copy it to `.github/workflows/check.yml` in a commit made with workflow-write permission to enable it. Hosted CI is not active in this baseline; local offline checks are the verified publication checks.
+Outputs are under `model/reports/hitter_stat_v6/`: qualified/all hitter tables, uncertainty components and game-block precision diagnostics. Activation is recorded in `model/data/models/current_hitter_stat.rds` after artifact checks pass. Importing the reader does not download data.
