@@ -17,3 +17,8 @@ __pycache__/
 .env.*
 *.pem
 *.key
+
+# Research experiment artifacts are rebuilt locally.
+model/experiments/*/models/
+model/experiments/*/reports/
+model/experiments/*/source/

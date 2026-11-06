@@ -2,7 +2,7 @@
 
 ## Environment
 
-Use R >= 4.4, Python >= 3.9 and curl. `scripts/install_dependencies.R` installs missing/older R dependencies to `model/.R-library/`: data.table, mgcv, glmnet and baseballr >= 2.0.0. Python scripts use only the standard library.
+Use R >= 4.4, Python >= 3.9 and curl. `scripts/install_dependencies.R` installs missing/older R dependencies to `model/.R-library/`: data.table, mgcv, glmnet, baseballr >= 2.0.0, lme4 >= 2.0.1 and digest >= 0.6.33. Python scripts use only the standard library.
 
 The source snapshot was tested with R 4.4.2, data.table 1.18.2.1, mgcv 1.9-1, glmnet 4.1-10 and baseballr 2.0.0. The installer resolves compatible available releases; it is not an exact dependency lock. Save the resolved session, raw responses and generated manifests for local replay. A later MLB export or different environment may change results or trigger a snapshot verification failure.
 
@@ -47,3 +47,22 @@ current_hitter_stat(2025)
 ```
 
 Outputs are under `model/reports/hitter_stat_v6/`: qualified/all hitter tables, uncertainty components and game-block precision diagnostics. Activation is recorded in `model/data/models/current_hitter_stat.rds` after artifact checks pass. Importing the reader does not download data.
+
+## Continuous hitter extension
+
+The extension was tested with lme4 2.0.1 and digest 0.6.37. The installer requires lme4 >= 2.0.1 because the constrained fit uses its modular Laplace interface. The offline check command also runs the continuous surface synthetic suite; it needs no downloaded data or fitted artifacts.
+
+After the historical rebuild through `hitters`, run:
+
+```bash
+python3 scripts/reproduce.py --stage hitter-regions
+python3 scripts/reproduce.py --stage hitter-surface
+```
+
+The stages are also appended, in that order, to `--all`. An individual `--stage` runs only that stage; prerequisites must already exist. The regional stage creates the four updated-history control bundles, categorical fits, histories, keyed predictions and hashes required by the surface stage. It creates the dependency-snapshot directory before calling the preserved regional runner. No precomputed model bundles are distributed.
+
+Each stage runs tests, fitting/evaluation, artifact verification and report generation. The surface results are written under `model/experiments/hitter_surface_v1/reports/`; its models and preprocessing are under `models/` beside that directory. Both are ignored by Git. All stages execute with `model/` as the working directory. The existing regional source and the continuous source are copied without changes from the verified local experiment.
+
+The surface stage fingerprints the complete regional experiment directory. Finish regional verification/reporting first, and do not rerun or edit that directory while reproducing the surface stage. Manifests must be regenerated locally rather than imported from the research workspace. Existing cache/hash checks deliberately fail when frozen inputs or fitting code change.
+
+2024 remains previously inspected exploratory evaluation. The published summary records the original run; exact reacquisition and a full clean-clone rebuild of these added stages have not been rerun for this release preparation. The report scripts preserve the original study narrative, including some fixed numerical statements; after a different-data rebuild, validate that narrative against the newly generated CSV tables before publishing it. The continuous extension is selected for further integration, but these stages do not activate it in the v6 scorer or reuse v6 uncertainty intervals.

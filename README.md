@@ -39,13 +39,19 @@ The checks and synthetic example need no MLB data. A full rebuild downloads mult
 - [examples/](examples/): synthetic scoring example.
 - [Source manifest](docs/source_manifest.csv): hashes of preserved source, protocols and tests.
 
+## Selected continuous hitter model
+
+The selected extension uses a pooled, six-term continuous hitter location surface for contact and BIP-given-contact probability. On exploratory 2024, it improved both log loss and Brier score beyond categorical hitter-zone pooling; calibration worsened slightly. See [results and limitations](docs/CONTINUOUS_HITTER_EFFECTS.md).
+
+The experiment and its reproducible comparison are included under `model/experiments/`. The current v6 scorer still reads the original baseline artifacts; selecting this extension does not activate it. Production scoring integration and fresh model uncertainty remain separate work. The extension currently evaluates 2024 only.
+
 ## Results and limits
 
 The exploratory 2025 snapshot contains **542,384 supported pitches and 339 qualified hitters**. Regional umpire effects improved supported-take log loss from **0.224218 to 0.223287**. Take-value RMSE changed from **0.046605 to 0.046538 runs**, but its paired error interval included zero. The original integration passed 9 unit and 52 artifact checks; a fresh clone must rebuild its own artifacts for artifact verification.
 
 These are provisional descriptive rankings. Unchosen actions are unobserved, 2025 is no longer an untouched test, and uncertainty is conditional. The frozen RE288 baseline has 34 flagged states excluded from primary scores; unsupported BIP extrapolations are also excluded. Small ranking differences should not be treated as established skill differences. The next research priorities are improving state valuations and BIP predictions. Same-pitch observed xBA is not a scoring input. Applying the model to 2026 requires zone/coordinate harmonization.
 
-Raw data, fitted models, libraries and generated reports are excluded. The original model source and historical protocols remain unchanged; run individual modules from `model/` or use the rebuild runner.
+Raw data, fitted models, libraries and generated reports are excluded. The original baseline source and historical protocols remain unchanged; run individual modules from `model/` or use the rebuild runner.
 
 ## Sources
 

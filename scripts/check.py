@@ -55,7 +55,8 @@ def main():
     run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_acquire_*.py'])
     for name in OFFLINE_R:
         run(['Rscript', 'tests/' + name])
-    print(f'PASS: source integrity, Python/R syntax, Python extractor suites and {len(OFFLINE_R)} offline R suites', flush=True)
+    run(['Rscript', 'experiments/hitter_surface_v1/tests.R'])
+    print(f'PASS: source integrity, Python/R syntax, Python extractor suites and {len(OFFLINE_R) + 1} offline R suites', flush=True)
 
 if __name__ == '__main__':
     main()

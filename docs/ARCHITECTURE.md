@@ -37,3 +37,13 @@ BIP labels use the **official immediate post-play state**, with later unrelated 
 - Predicting 2025: catcher/umpire effects use 2024 evidence; weekly calibration uses only earlier 2025 games.
 - 2025 has already been examined repeatedly and is exploratory reanalysis for v6.
 - 2026 is unsupported pending coordinate and ABS-zone harmonization.
+
+## Selected continuous hitter extension
+
+`experiments/hitter_surface_v1/` adds a six-term quadratic surface per hitter to the fixed updated-history GAM logits for contact and BIP-given-contact. Its centered shape terms and hitter intercept share one learned Gaussian coefficient variance per stage. Sparse hitters shrink toward the population prediction; unseen hitters receive exactly zero adjustment. The existing pitch-family predictors remain in the population GAM.
+
+The comparison reuses `experiments/hitter_region_v1/` for the updated-history GAMs and categorical benchmark. `compare_contact_personnel.R` supplies chronological contact profiles: 2022 rows use 2021, 2023 use 2022, and 2024 use 2023; contact-quality histories follow the same chronology. The original v6 baseline's frozen-2021 history behavior above remains unchanged.
+
+Only contact and BIP probability differ between comparison arms. Caught-tip probability and BIP expected value use the same updated-history population predictions in every arm. The replay preserves take values, RE transitions, policy, qualification and the frozen reference. It applies a common supported cohort and saves fresh conditional game-sampling intervals. Baseline model uncertainty intervals are not reused.
+
+This is the selected research extension, not an activated replacement for `current_hitter_stat.R`. No 2025 continuous-surface scoring or new model-uncertainty propagation is claimed. See [the experiment summary](CONTINUOUS_HITTER_EFFECTS.md).
