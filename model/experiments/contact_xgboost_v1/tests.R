@@ -1,0 +1,17 @@
+source('experiments/contact_xgboost_v1/functions.R')
+checks<-list();check<-function(name,ok){stopifnot(isTRUE(ok));checks[[name]]<<-data.table(check=name,passed=TRUE)}
+set.seed(XSEED);x<-matrix(rnorm(1000),200,5);colnames(x)<-paste0('f',1:5);y<-as.numeric(x[,1]+rnorm(200)>.2)
+a<-xgb.DMatrix(x[1:140,],label=y[1:140]);b<-xgb.DMatrix(x[141:200,],label=y[141:200])
+par<-x_params(3);par$min_child_weight<-2
+set.seed(XSEED);fit<-xgb.train(params=par,data=a,nrounds=40,evals=list(train=a,validation=b),callbacks=list(xgb.cb.early.stop(5,metric_name='validation_logloss',save_best=TRUE,verbose=FALSE)),verbose=0)
+k<-which.min(attr(fit,'evaluation_log')$validation_logloss)
+check('early_stopping_one_based_best_round',attr(fit,'early_stop')$best_iteration==k&&xgb.get.num.boosted.rounds(fit)==k)
+path<-tempfile(fileext='.ubj');xgb.save(fit,path);p<-as.numeric(predict(fit,b));reload<-xgb.load(path)
+check('native_serialization',identical(p,as.numeric(predict(reload,b))));unlink(path)
+set.seed(XSEED);fit2<-xgb.train(params=par,data=a,nrounds=k,verbose=0)
+check('deterministic_refit_fixture',identical(p,as.numeric(predict(fit2,b))))
+f<-data.table(value=c(0,2,3),group=factor(c('a','b','a'),levels=c('a','b')))
+s<-list(features=c('value','group'),numeric='value',levels=list(group=c('a','b')))
+m<-x_matrix(f,s);check('zero_and_one_hot_encoding',identical(as.numeric(m[,1]),c(0,2,3))&&all(rowSums(m[,-1])==1)&&all(m[,'group=a']==c(1,0,1)))
+check('unknown_category_rejected',inherits(try(x_matrix(data.table(value=1,group='unseen'),s),silent=TRUE),'try-error'))
+fwrite(rbindlist(checks),file.path(XR,'unit_verification.csv'));cat(length(checks),'unit checks passed\n')

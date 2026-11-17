@@ -56,7 +56,8 @@ def main():
     for name in OFFLINE_R:
         run(['Rscript', 'tests/' + name])
     run(['Rscript', 'experiments/hitter_surface_v1/tests.R'])
-    print(f'PASS: source integrity, Python/R syntax, Python extractor suites and {len(OFFLINE_R) + 1} offline R suites', flush=True)
+    run(['Rscript', 'tests/test_hitter_stat_xgboost.R'])
+    print(f'PASS: source integrity, Python/R syntax, Python extractor suites and {len(OFFLINE_R) + 2} offline R suites', flush=True)
 
 if __name__ == '__main__':
     main()

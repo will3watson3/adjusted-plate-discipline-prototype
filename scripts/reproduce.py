@@ -23,7 +23,7 @@ STAGES = {
     'calibration': [R('called_strike_v4.R')],
     'umpires': [R('umpire_v5.R', '--prepare'), P('acquire_umpire_assignments.py'), P('tests/verify_umpire_acquisition.py'),
                 R('umpire_v5.R'), R('audit_umpire_v5.R'), R('tests/verify_umpire_v5.R')],
-    'hitters': [R('tests/test_hitter_stat_v6.R'), R('current_hitter_stat.R'), P('write_hitter_stat_v6_report.py')],
+    'hitters': [R('tests/test_hitter_stat_v6.R'), R('current_hitter_stat.R', '--baseline'), P('write_hitter_stat_v6_report.py')],
     'hitter-regions': [R('experiments/hitter_region_v1/tests.R'),
                        R('experiments/hitter_region_v1/run.R'),
                        R('experiments/hitter_region_v1/verify.R'),
@@ -32,6 +32,26 @@ STAGES = {
                        R('experiments/hitter_surface_v1/run.R'),
                        R('experiments/hitter_surface_v1/verify.R'),
                        R('experiments/hitter_surface_v1/report.R')],
+    'contact-profiles': [R('compare_contact_personnel.R')],
+    'contact-xgboost': [R('experiments/contact_xgboost_v1/tests.R'),
+                        R('experiments/contact_xgboost_v1/train.R'),
+                        R('experiments/contact_xgboost_v1/evaluate.R'),
+                        R('experiments/contact_xgboost_v1/verify.R'),
+                        R('experiments/contact_xgboost_v1/verify_prediction.R'),
+                        R('experiments/contact_xgboost_v1/report.R')],
+    'swing-xgboost': [R('experiments/swing_xgboost_v1/tests.R'),
+                      R('experiments/swing_xgboost_v1/train.R'),
+                      R('experiments/swing_xgboost_v1/evaluate.R'),
+                      R('experiments/swing_xgboost_v1/verify.R'),
+                      R('experiments/swing_xgboost_v1/verify_prediction.R'),
+                      R('experiments/swing_xgboost_v1/report.R')],
+    'take-xgboost': [R('experiments/take_xgboost_v1/tests.R'),
+                     R('experiments/take_xgboost_v1/train.R'),
+                     R('experiments/take_xgboost_v1/fit_actors.R'),
+                     R('experiments/take_xgboost_v1/evaluate.R'),
+                     R('experiments/take_xgboost_v1/verify.R'),
+                     R('experiments/take_xgboost_v1/report.R')],
+    'current-xgboost': [R('tests/test_hitter_stat_xgboost.R'), R('current_hitter_stat.R')],
 }
 
 def main():
@@ -56,6 +76,8 @@ def main():
     out = MODEL / 'reports/reproduction'
     out.mkdir(parents=True, exist_ok=True)
     (MODEL / 'reports/hitter_stat_v6').mkdir(parents=True, exist_ok=True)
+    for name in ('contact', 'swing', 'take'):
+        (MODEL / f'experiments/{name}_xgboost_v1/reports').mkdir(parents=True, exist_ok=True)
     # The preserved regional runner snapshots its dependencies into this directory.
     if 'hitter-regions' in stages:
         (MODEL / 'experiments/hitter_region_v1/source').mkdir(parents=True, exist_ok=True)

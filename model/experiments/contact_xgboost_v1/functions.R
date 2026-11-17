@@ -1,0 +1,46 @@
+source('compare_contact_personnel.R')
+suppressPackageStartupMessages(library(xgboost))
+XROOT<-'experiments/contact_xgboost_v1';XM<-file.path(XROOT,'models');XR<-file.path(XROOT,'reports')
+XSEED<-20261116L
+setDTthreads(2)
+# Extend accepted seasons only; original feature/profile definitions remain unchanged.
+body(cp_profiles)<-parse(text=gsub('2021:2023','2021:2024',paste(deparse(body(cp_profiles)),collapse='\n'),fixed=TRUE))[[1]]
+body(cp_features)<-parse(text=gsub('2022:2024','2022:2025',paste(deparse(body(cp_features)),collapse='\n'),fixed=TRUE))[[1]]
+body(ct_read)<-parse(text=gsub('2022:2024','2022:2025',paste(deparse(body(ct_read)),collapse='\n'),fixed=TRUE))[[1]]
+x_hash<-function(p)data.table(path=p,md5=unname(tools::md5sum(p)))
+x_check_hash<-function(h)stopifnot(!anyNA(h$md5),identical(h$md5,unname(tools::md5sum(h$path))))
+x_features<-function(d,prep,profiles,features){
+ f<-cp_features(d,prep,profiles)
+ stopifnot(all(features%in%names(f)))
+ f
+}
+x_schema<-function(features,prep){
+ factors<-intersect(features,CT_FACTORS);numeric<-setdiff(features,factors)
+ list(features=features,numeric=numeric,levels=prep$levels[factors])
+}
+x_matrix<-function(f,schema){
+ stopifnot(all(schema$features%in%names(f)))
+ out<-as.matrix(f[,schema$numeric,with=FALSE]);storage.mode(out)<-'double'
+ for(nm in names(schema$levels)){
+  lev<-schema$levels[[nm]];stopifnot(!anyNA(f[[nm]]),all(as.character(f[[nm]])%in%lev))
+  a<-vapply(lev,function(level)as.numeric(as.character(f[[nm]])==level),numeric(nrow(f)))
+  colnames(a)<-paste(nm,lev,sep='=');out<-cbind(out,a)
+ }
+ stopifnot(all(is.finite(out)),!anyDuplicated(colnames(out)));out
+}
+x_params<-function(depth)list(objective='binary:logistic',eval_metric='logloss',tree_method='hist',device='cpu',
+ eta=.05,max_depth=as.integer(depth),min_child_weight=50,lambda=10,alpha=1,subsample=.8,colsample_bytree=.9,max_bin=256,nthread=2,seed=XSEED,validate_parameters=TRUE)
+x_predict<-function(model,d,bundle){
+ f<-x_features(d,bundle$prep,bundle$profiles,bundle$schema$features)
+ as.numeric(predict(model,xgb.DMatrix(x_matrix(f,bundle$schema),nthread=2)))
+}
+x_boot<-function(d,candidate,reference,B=500L){
+ losses<-list(log_loss=cs_loss(d$y,d[[candidate]])-cs_loss(d$y,d[[reference]]),
+ brier=(d[[candidate]]-d$y)^2-(d[[reference]]-d$y)^2,mean_error=d[[candidate]]-d[[reference]])
+ rbindlist(lapply(names(losses),function(metric){
+  g<-data.table(game=d$game_pk,delta=losses[[metric]])[,.(n=.N,total=sum(delta)),by=game]
+  set.seed(XSEED);draws<-replicate(B,{i<-sample.int(nrow(g),nrow(g),TRUE);sum(g$total[i])/sum(g$n[i])})
+  data.table(candidate=candidate,reference=reference,metric=metric,difference=mean(losses[[metric]]),ci_low=unname(quantile(draws,.025)),ci_high=unname(quantile(draws,.975)),games=nrow(g),replicates=B)
+ }))
+}
+x_bands<-function(n)as.character(cut(n,c(-1,0,49,199,999,Inf),labels=c('unseen','1_to_49','50_to_199','200_to_999','1000_plus')))

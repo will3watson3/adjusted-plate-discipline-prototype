@@ -39,19 +39,21 @@ The checks and synthetic example need no MLB data. A full rebuild downloads mult
 - [examples/](examples/): synthetic scoring example.
 - [Source manifest](docs/source_manifest.csv): hashes of preserved source, protocols and tests.
 
-## Selected continuous hitter model
+## Current model
 
-The selected extension uses a pooled, six-term continuous hitter location surface for contact and BIP-given-contact probability. On exploratory 2024, it improved both log loss and Brier score beyond categorical hitter-zone pooling; calibration worsened slightly. See [results and limitations](docs/CONTINUOUS_HITTER_EFFECTS.md).
+The main scorer uses **XGBoost for contact probability, ball-in-play probability given contact, and the full take path**. The take backbone has its own prior-season joint catcher/umpire adjustments and past-only weekly calibration. Caught-tip probability and BIP value retain the active v6 GAMs. RE288, league swing policy, qualification and the frozen 2024 Decision+ scale stay fixed.
 
-The experiment and its reproducible comparison are included under `model/experiments/`. The current v6 scorer still reads the original baseline artifacts; selecting this extension does not activate it. Production scoring integration and fresh model uncertainty remain separate work. The extension currently evaluates 2024 only.
+The hybrid is implemented in [model/hitter_stat_xgboost.R](model/hitter_stat_xgboost.R), with [model/current_hitter_stat.R](model/current_hitter_stat.R) as the entry point. It withholds original unsupported pitches and any added extrapolations in the new prior-season histories. Hitter intervals are freshly sampled conditional game intervals; earlier GAM model intervals are not reused.
+
+See [the integration results](docs/XGBOOST_MAIN_MODEL.md) and [reproduction instructions](docs/REPRODUCING.md). The isolated contact, swing and take comparisons are included under `model/experiments/`. The full-swing comparison is historical evidence; its XGBoost tip and value models are **not used** by the current scorer. Continuous hitter surfaces remain a historical research experiment.
 
 ## Results and limits
 
-The exploratory 2025 snapshot contains **542,384 supported pitches and 339 qualified hitters**. Regional umpire effects improved supported-take log loss from **0.224218 to 0.223287**. Take-value RMSE changed from **0.046605 to 0.046538 runs**, but its paired error interval included zero. The original integration passed 9 unit and 52 artifact checks; a fresh clone must rebuild its own artifacts for artifact verification.
+The isolated 2025 complete take comparison reduced supported-take log loss from 0.223287 to 0.214115 and factual take-value RMSE from 0.046538 to 0.045328 runs. Both paired game intervals favored XGBoost. Contact and BIP-given-contact probability also improved in their isolated comparisons. The exact hybrid uses unchanged v6 tip/value GAMs and is evaluated separately in the integration summary.
 
-These are provisional descriptive rankings. Unchosen actions are unobserved, 2025 is no longer an untouched test, and uncertainty is conditional. The frozen RE288 baseline has 34 flagged states excluded from primary scores; unsupported BIP extrapolations are also excluded. Small ranking differences should not be treated as established skill differences. The next research priorities are improving state valuations and BIP predictions. Same-pitch observed xBA is not a scoring input. Applying the model to 2026 requires zone/coordinate harmonization.
+These are descriptive model-based rankings. 2024 and 2025 are already inspected exploratory data; unchosen actions remain unobserved. Game intervals condition on fitted models and realized weekly histories and exclude full fitting uncertainty. The frozen RE288 baseline has 34 ordering-warning states excluded from primary scores. Applying the model to 2026 requires zone/coordinate harmonization.
 
-Raw data, fitted models, libraries and generated reports are excluded. The original baseline source and historical protocols remain unchanged; run individual modules from `model/` or use the rebuild runner.
+Raw data, fitted models, libraries and generated reports are excluded from Git. The source release rebuilds these artifacts locally. The original v6 builder is preserved as `model/current_hitter_stat_v6.R` for the historical prerequisite stage.
 
 ## Sources
 

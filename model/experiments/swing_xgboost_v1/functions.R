@@ -1,0 +1,49 @@
+source('experiments/hitter_region_v1/run.R')
+source('experiments/contact_xgboost_v1/functions.R')
+SROOT<-'experiments/swing_xgboost_v1';SM<-file.path(SROOT,'models');SR<-file.path(SROOT,'reports')
+HR_REPORT<-SR
+body(hr_features)<-parse(text=gsub('2022:2024','2022:2025',paste(deparse(body(hr_features)),collapse='\n'),fixed=TRUE))[[1]]
+SSTAGES<-c('bip','tip','value');SARMS<-c('gam','contact_only','xgboost')
+s_base<-function(stage){b<-readRDS(file.path('experiments/hitter_region_v1/models',paste0(stage,'.rds')));b}
+s_histories<-function()list(contact=setNames(lapply(2021:2024,cp_profiles),2021:2024),power=setNames(lapply(2021:2024,hr_power),2021:2024))
+s_key<-function(d)do.call(paste,c(d[,..CT_KEYS],sep='|'))
+s_api<-function()rbindlist(list(fread('reports/post_contact/bip_post_states.csv'),fread('reports/decision_validation/bip_post_states_2025.csv')),use.names=TRUE,fill=TRUE)
+s_data<-function(raw,stage,api,re){
+ if(stage!='value')return(hr_stage_data(raw,stage,NULL,NULL))
+ d<-pc_bip_targets(raw,api,re)
+ fwrite(d[,.(n=.N),by=.(season,target_status)],file.path(SR,paste0('target_audit_',paste(unique(raw$season),collapse='_'),'_',re$id,'.csv')))
+ d<-d[target_status=='verified'];d[,y:=q_bip_observed];d
+}
+s_schema<-function(features,prep){
+ factors<-intersect(features,c(CT_FACTORS,'base_out'));lev<-prep$levels[setdiff(factors,'base_out')]
+ if('base_out'%in%factors)lev$base_out<-prep$base_out_levels
+ list(features=features,numeric=setdiff(features,factors),levels=lev)
+}
+s_matrix<-function(f,schema){
+ stopifnot(nrow(f)>0,all(schema$features%in%names(f)))
+ out<-as.matrix(f[,schema$numeric,with=FALSE]);storage.mode(out)<-'double'
+ for(nm in names(schema$levels)){
+  lev<-schema$levels[[nm]];stopifnot(!anyNA(f[[nm]]),all(as.character(f[[nm]])%in%lev))
+  a<-matrix(vapply(lev,function(level)as.numeric(as.character(f[[nm]])==level),numeric(nrow(f))),nrow=nrow(f),ncol=length(lev))
+  colnames(a)<-paste(nm,lev,sep='=');out<-cbind(out,a)
+ }
+ stopifnot(all(is.finite(out)),!anyDuplicated(colnames(out)));out
+}
+s_features<-function(d,b,h)hr_features(d,list(stage=b$stage,prep=b$prep),h$contact,h$power)
+s_predict<-function(model,d,b,h)as.numeric(predict(model,xgb.DMatrix(s_matrix(s_features(d,b,h),b$schema),nthread=2)))
+s_params<-function(depth,stage){p<-x_params(depth);if(stage=='value'){p$objective<-'count:poisson';p$eval_metric<-'rmse';p$max_delta_step<-.7};p}
+s_metrics<-function(y,p,stage){if(stage=='value')data.table(n=length(y),rmse=sqrt(mean((p-y)^2)),mae=mean(abs(p-y)),bias=mean(p-y))else cs_metrics(y,p)}
+s_boot<-function(game,y,a,b,stage){
+ loss<-if(stage=='value')list(rmse=list((a-y)^2,(b-y)^2),mae=list(abs(a-y),abs(b-y)),bias=list(a-y,b-y))else list(log_loss=list(cs_loss(y,a),cs_loss(y,b)),brier=list((a-y)^2,(b-y)^2),bias=list(a-y,b-y))
+ rbindlist(lapply(names(loss),function(metric){
+  ll<-loss[[metric]];g<-data.table(game=game,a=ll[[1]],b=ll[[2]])[,.(n=.N,a=sum(a),b=sum(b)),by=game]
+  calc<-function(i){aa<-sum(g$a[i])/sum(g$n[i]);bb<-sum(g$b[i])/sum(g$n[i]);if(metric=='rmse')sqrt(aa)-sqrt(bb)else aa-bb}
+  set.seed(XSEED);draws<-replicate(500,{i<-sample.int(nrow(g),nrow(g),TRUE);calc(i)})
+  data.table(metric=metric,difference=calc(seq_len(nrow(g))),ci_low=unname(quantile(draws,.025)),ci_high=unname(quantile(draws,.975)),games=nrow(g),replicates=500)
+ }))
+}
+s_branches<-function(c,b,t,q,old){
+ mat<-cbind(whiff=1-c,bip=c*b,foul=c*(1-b)*(1-t),tip=c*(1-b)*t)
+ stopifnot(all(is.finite(mat)),all(mat>=0&mat<=1),max(abs(rowSums(mat)-1))<1e-12,all(is.finite(q)&q>=0))
+ out<-as.data.table(mat);out[,`:=`(q_bip=q,p_tip_given_nonbip=t,q_swing=mat[,'whiff']*old$q_whiff+mat[,'bip']*q+mat[,'foul']*old$q_ordinary_foul+mat[,'tip']*old$q_foul_tip)];out
+}

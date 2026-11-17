@@ -3,7 +3,7 @@ if (!file.exists('model/current_hitter_stat.R')) stop('Run from repository root'
 lib <- file.path(getwd(), 'model', '.R-library')
 dir.create(lib, recursive=TRUE, showWarnings=FALSE)
 .libPaths(c(lib, .libPaths()))
-minimum <- c(data.table='1.16.0', mgcv='1.9.1', glmnet='4.1.8', baseballr='2.0.0', lme4='2.0.1', digest='0.6.33')
+minimum <- c(data.table='1.16.0', mgcv='1.9.1', glmnet='4.1.8', baseballr='2.0.0', lme4='2.0.1', digest='0.6.33', xgboost='3.2.1.1')
 if (getRversion() < '4.4.0') stop('Use R >= 4.4')
 for (p in names(minimum)) {
   if (!p %in% rownames(installed.packages()) || packageVersion(p) < minimum[[p]]) {

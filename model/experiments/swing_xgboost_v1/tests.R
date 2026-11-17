@@ -1,0 +1,13 @@
+source('experiments/swing_xgboost_v1/functions.R')
+set.seed(XSEED);d<-data.table(x=rnorm(100),f=factor(rep(c('a','b'),50)))
+s<-list(features=c('x','f'),numeric='x',levels=list(f=c('a','b')))
+x<-s_matrix(d,s);stopifnot(identical(dim(s_matrix(d[1],s)),c(1L,3L)),all(rowSums(x[,-1])==1))
+y<-pmax(0,.4+d$x*.2);dm<-xgb.DMatrix(x,label=y)
+p<-s_params(3,'value');p$min_child_weight<-2
+set.seed(XSEED);m<-xgb.train(params=p,data=dm,nrounds=10,verbose=0);pp<-predict(m,dm)
+stopifnot(all(is.finite(pp)&pp>0));path<-tempfile(fileext='.ubj');xgb.save(m,path);stopifnot(identical(pp,predict(xgb.load(path),dm)));unlink(path)
+o<-data.table(q_whiff=c(.1,.2),q_ordinary_foul=c(.2,.3),q_foul_tip=c(.1,.2))
+b<-s_branches(c(.7,.8),c(.5,.6),c(.03,.04),c(.6,.7),o)
+stopifnot(max(abs(rowSums(as.matrix(b[,.(whiff,bip,foul,tip)]))-1))<1e-12)
+fwrite(data.table(check=c('singleton_encoding','one_hot_partition','continuous_nonnegative_Poisson_targets','positive_value_predictions','native_serialization','branch_simplex'),passed=TRUE),file.path(SR,'unit_verification.csv'))
+cat('6 unit checks passed\n')
