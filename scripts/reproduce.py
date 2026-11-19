@@ -51,7 +51,10 @@ STAGES = {
                      R('experiments/take_xgboost_v1/evaluate.R'),
                      R('experiments/take_xgboost_v1/verify.R'),
                      R('experiments/take_xgboost_v1/report.R')],
-    'current-xgboost': [R('tests/test_hitter_stat_xgboost.R'), R('current_hitter_stat.R')],
+    'current-xgboost': [R('tests/test_hitter_stat_xgboost.R'), R('current_hitter_stat_v7.R')],
+    'bip-value-profiles': [R('experiments/bip_value_profiles_v1/' + script + '.R')
+                           for script in ('tests', 'train', 'evaluate', 'verify', 'report')],
+    'current-profiles': [R('current_hitter_stat.R'), R('tests/verify_hitter_stat_v8.R')],
 }
 
 def main():

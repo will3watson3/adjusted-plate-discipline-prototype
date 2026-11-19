@@ -3,7 +3,7 @@
 | Component | Inputs | Output / responsibility |
 | --- | --- | --- |
 | Data cleaning | Completed regular-season game schedules, Statcast pitch events, MLB player IDs | Deduplicated pitch keys, ordinary-action flags, pitch tracking, game state and past-pitch fields; full events retained for state transitions |
-| Historical player profiles | Shrunken 2021 contact tendencies and contact-quality summaries, with handedness/pitch-family splits | Contact and BIP probability use immediately preceding-season histories; retained tip/value GAMs keep their v6 2021 profiles |
+| Historical player profiles | Smoothed hitter and pitcher histories, with handedness/pitch-family splits | Contact and BIP probability use immediately preceding-season histories; tip and value GAMs keep 2021 contact-rate histories. The value GAM also uses preceding-season EV, barrel and ground-ball rates |
 | RE24 / RE288 | 2022-2023 completed, uncensored half-innings; runners/outs and optionally count | Expected runs remaining. RE288 uses lambda-250 shrinkage toward RE24. Player identity is not an RE predictor |
 | Contact probability | Location relative to recorded zone, pitch speed/movement/spin/extension, count, hands, game context and historical profiles | XGBoost P(contact if swing); complement is whiff |
 | Post-contact distribution | Pitch characteristics, count, hands and historical profiles | XGBoost P(BIP if contact) and retained v6 GAM P(caught tip if non-BIP contact), giving coherent branches |
@@ -31,7 +31,7 @@ BIP labels use the **official immediate post-play state**, with later unrelated 
 
 ## Time boundaries
 
-- Contact/BIP probability profiles: immediately preceding season; retained tip/value profiles: frozen 2021.
+- Contact/BIP probability profiles: immediately preceding season; tip/value contact-rate histories: frozen 2021. V8 BIP quality profiles use season Y−1.
 - 2022 fit / 2023 selection / 2022-2023 refit: core outcome, value and policy models.
 - 2024: historical development/forward comparisons; later upgrades also selected historically.
 - Predicting 2025: catcher/umpire effects use 2024 evidence; weekly calibration uses only earlier 2025 games.
@@ -50,6 +50,6 @@ This historical research extension is not used by the current XGBoost scorer. No
 
 ## Main integration
 
-`hitter_stat_xgboost.R` loads the frozen contact and BIP probability boosters, retains the active v6 tip/value GAMs, and uses the separately fitted complete XGBoost take path. Prediction uses cleaned pitch/context inputs, never same-pitch outcome labels. Actor evidence, Normal uncertainty integration and weekly ledgers follow the take experiment. All historical inference is restricted to audited 2024/2025 dates.
+`hitter_stat_xgboost.R` loads the frozen contact and BIP probability boosters, loads the v6 tip GAM and the v8 prior-season contact-quality value GAM, and uses the separately fitted complete XGBoost take path. Prediction uses cleaned pitch/context inputs, never same-pitch outcome labels. Actor evidence, Normal uncertainty integration and weekly ledgers follow the take experiment. All historical inference is restricted to audited 2024/2025 dates.
 
 The scorer applies original support plus new-history training-range restrictions, recomputes coherent branch probabilities and both action values, and aggregates `(observed_swing - league_probability) * (Q_swing - Q_take)`. The original 2024 scale is reused without recentering. Activation occurs only after independent artifact verification succeeds. The v6 artifact directory is preserved.

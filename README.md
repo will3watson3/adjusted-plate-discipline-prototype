@@ -41,15 +41,15 @@ The checks and synthetic example need no MLB data. A full rebuild downloads mult
 
 ## Current model
 
-The main scorer uses **XGBoost for contact probability, ball-in-play probability given contact, and the full take path**. The take backbone has its own prior-season joint catcher/umpire adjustments and past-only weekly calibration. Caught-tip probability and BIP value retain the active v6 GAMs. RE288, league swing policy, qualification and the frozen 2024 Decision+ scale stay fixed.
+The main scorer uses **XGBoost for contact probability, ball-in-play probability given contact, and the full take path**. The take backbone has its own prior-season joint catcher/umpire adjustments and past-only weekly calibration. The v8 BIP-value GAM uses hitter and pitcher exit velocity, barrel rate and ground-ball rate from the preceding completed season. The caught-tip GAM and both GAMs’ 2021 contact-rate histories retain their historical definitions. RE288, league swing policy, qualification and the frozen 2024 Decision+ scale stay fixed.
 
 The hybrid is implemented in [model/hitter_stat_xgboost.R](model/hitter_stat_xgboost.R), with [model/current_hitter_stat.R](model/current_hitter_stat.R) as the entry point. It withholds original unsupported pitches and any added extrapolations in the new prior-season histories. Hitter intervals are freshly sampled conditional game intervals; earlier GAM model intervals are not reused.
 
-See [the integration results](docs/XGBOOST_MAIN_MODEL.md) and [reproduction instructions](docs/REPRODUCING.md). The isolated contact, swing and take comparisons are included under `model/experiments/`. The full-swing comparison is historical evidence; its XGBoost tip and value models are **not used** by the current scorer. Continuous hitter surfaces remain a historical research experiment.
+See [the v7 integration results](docs/XGBOOST_MAIN_MODEL.md) and [reproduction instructions](docs/REPRODUCING.md). The isolated contact, swing and take comparisons are included under `model/experiments/`. The full-swing comparison is historical evidence; its XGBoost tip and value models are **not used** by the current scorer. Continuous hitter surfaces remain a historical research experiment.
 
 ## Results and limits
 
-The isolated 2025 complete take comparison reduced supported-take log loss from 0.223287 to 0.214115 and factual take-value RMSE from 0.046538 to 0.045328 runs. Both paired game intervals favored XGBoost. Contact and BIP-given-contact probability also improved in their isolated comparisons. The exact hybrid uses unchanged v6 tip/value GAMs and is evaluated separately in the integration summary.
+The isolated 2025 complete take comparison reduced supported-take log loss from 0.223287 to 0.214115 and factual take-value RMSE from 0.046538 to 0.045328 runs. Both paired game intervals favored XGBoost. Contact and BIP-given-contact probability also improved in their isolated comparisons. Against v7, v8 had slightly lower factual BIP and complete-swing RMSE in both seasons, with higher MAE and positive bias. [Profile specification and comparison](docs/BIP_VALUE_PROFILES.md).
 
 These are descriptive model-based rankings. 2024 and 2025 are already inspected exploratory data; unchosen actions remain unobserved. Game intervals condition on fitted models and realized weekly histories and exclude full fitting uncertainty. The frozen RE288 baseline has 34 ordering-warning states excluded from primary scores. Applying the model to 2026 requires zone/coordinate harmonization.
 

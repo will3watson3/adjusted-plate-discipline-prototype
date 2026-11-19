@@ -46,7 +46,7 @@ source('current_hitter_stat.R')
 current_hitter_stat(2025)
 ```
 
-After the XGBoost stages below, outputs are under `model/reports/hitter_stat_xgboost/`: qualified/all hitter tables, common-cohort value metrics, paired game intervals and hitter sampling intervals. Activation is recorded in `model/data/models/current_hitter_stat.rds` after artifact checks pass. Importing the reader does not download data.
+After the final profile stage, v8 hitter tables and verification are under `model/reports/hitter_stat_v8/`. The earlier v7 outputs are under `model/reports/hitter_stat_xgboost/`: qualified/all hitter tables, common-cohort value metrics, paired game intervals and hitter sampling intervals. Activation is recorded in `model/data/models/current_hitter_stat.rds` after artifact checks pass. Importing the reader does not download data.
 
 ## Continuous hitter extension
 
@@ -79,10 +79,21 @@ python3 scripts/reproduce.py --stage take-xgboost
 python3 scripts/reproduce.py --stage current-xgboost
 ```
 
-`--all` runs these after the earlier stages. The `hitters` prerequisite explicitly invokes `current_hitter_stat.R --baseline`; only `current-xgboost` activates the new main model. For direct integration after prerequisites, run `Rscript current_hitter_stat.R` from `model/`. Verification failure leaves the active pointer unchanged.
+`--all` runs these after the earlier stages. The `hitters` prerequisite explicitly invokes `current_hitter_stat.R --baseline`; `current-xgboost` activates the v7 prerequisite. For direct v7 integration after prerequisites, run `Rscript current_hitter_stat_v7.R` from `model/`. Verification failure leaves the active pointer unchanged.
 
 The full-swing historical comparison fits tip/value challengers for evaluation, but the main hybrid uses only its BIP-probability booster. Contact uses its own frozen booster. Tip and BIP value retain the original v6 GAMs. No new tuning is performed during integration.
 
 All experiment tests, fitting, evaluation and verification must finish **before activation**, because their frozen input manifests include the previous active pointer. Activation archives that pointer under `data/models/hitter_stat_xgboost/previous_active.rds`; original v6 artifacts remain untouched. The main scorer freezes its own inputs, verifies exact selected components and factual arithmetic, and writes fresh 500-draw game intervals. Do not interpret these as full training/model uncertainty.
 
 Frozen experiment trainers refuse overwrites; use a new version directory for a genuinely fresh refit. Re-running a completed historical study after activating another scorer requires its original baseline pointer and source snapshot. A full reacquisition/refit was not performed for this release; integration was tested against existing frozen models and both complete 2024/2025 datasets.
+
+## Promote the v8 BIP-value profiles
+
+After `current-xgboost` has built and activated v7 in this checkout, run:
+
+```bash
+python3 scripts/reproduce.py --stage bip-value-profiles
+python3 scripts/reproduce.py --stage current-profiles
+```
+
+The first stage fits the A/B/C GAMs, evaluates matched pitches for both years and verifies the experiment against v7. The second promotes Arm C, checks the full 2024 and 2025 replay, and verifies both public scoring interfaces. Both stages are included in this order in `--all`. Source `model/current_hitter_stat.R` from the model directory as shown above to read the active results (use the filename `current_hitter_stat.R` there).

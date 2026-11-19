@@ -1,19 +1,35 @@
 # Main historical scorer: XGBoost contact, BIP|contact and complete take path.
-# Caught-tip and BIP-value GAMs, RE288, league policy and reference stay frozen.
+# The current BIP-value GAM uses prior-season EV, barrel and ground-ball profiles.
 source('experiments/swing_xgboost_v1/functions.R')
 source('experiments/take_xgboost_v1/predict.R')
+source('experiments/bip_value_profiles_v1/functions.R')
+H8_MODELS <- 'data/models/hitter_stat_v8'
+H8_REPORT <- 'reports/hitter_stat_v8'
+H8_VERSION <- 'decision_plus_bip_profiles_v8'
+
+h8_load <- function() {
+  models <- h7_load(legacy=list(post=readRDS(file.path(PC_MODELS,'post_contact_fit_2022_2023.rds'))))
+  frozen <- readRDS(file.path(BM,'frozen.rds'))
+  paths <- file.path(BM,c('C.rds','profiles.rds'))
+  bp_check_hash(frozen$code)
+  bp_check_hash(frozen$models[match(paths,path)])
+  models$profile_value <- readRDS(paths[1])
+  models$value_histories <- readRDS(paths[2])
+  models
+}
+
 H7_MODELS <- 'data/models/hitter_stat_xgboost'
 H7_REPORT <- 'reports/hitter_stat_xgboost'
 H7_VERSION <- 'decision_plus_xgboost_v7'
 
-h7_load <- function() {
+h7_load <- function(legacy=load_decision_models()) {
   for(path in c('experiments/contact_xgboost_v1/models/frozen.rds',
     'experiments/swing_xgboost_v1/models/frozen.rds','experiments/take_xgboost_v1/models/frozen.rds')) {
     f <- readRDS(path); vd_check_hash(f$model_hashes)
   }
   list(contact=readRDS(file.path(XM,'bundle.rds')),contact_model=xgb.load(file.path(XM,'contact.ubj')),
     bip=readRDS(file.path(SM,'bip.rds')),bip_model=xgb.load(file.path(SM,'bip.ubj')),
-    histories=readRDS(file.path(SM,'histories.rds')),legacy=load_decision_models(),
+    histories=readRDS(file.path(SM,'histories.rds')),legacy=legacy,
     contact_control=readRDS('data/models/contact_personnel_comparison/updated_profiles.rds'),bip_control=s_base('bip'))
 }
 
@@ -26,7 +42,7 @@ h7_branches <- function(contact,bip,tip,value,states) {
     q_swing_basic=p[,'whiff']*states$q_whiff+p[,'bip']*value+p[,'foul']*states$q_ordinary_foul+p[,'tip']*states$q_foul_tip)
 }
 
-predict_hitter_xgboost <- function(pitches,models=h7_load(),frozen_legacy=NULL) {
+predict_hitter_xgboost <- function(pitches,models=h8_load(),frozen_legacy=NULL) {
   d <- copy(as.data.table(pitches)); n <- nrow(d)
   stopifnot(n>0L,length(unique(d$game_year))==1L,all(d$game_year%in%2024:2025))
   d[,season:=game_year]
@@ -36,13 +52,15 @@ predict_hitter_xgboost <- function(pitches,models=h7_load(),frozen_legacy=NULL) 
   bip <- s_predict(models$bip_model,d,models$bip,models$histories)
   if(is.null(frozen_legacy)) {
     tip_features <- pc_transform(d,models$legacy$post$tip$prep)$data
-    value_features <- pc_transform(d,models$legacy$value$prep)$data
     tip <- plogis(hr_eta(models$legacy$post$tip$model,tip_features))
-    value <- exp(hr_eta(models$legacy$value$model,value_features))
   } else {
     stopifnot(identical(dv_key(d),dv_key(frozen_legacy)))
     tip <- frozen_legacy$p_foul_tip_given_contact/(1-frozen_legacy$p_in_play_given_contact)
-    value <- frozen_legacy$q_bip
+  }
+  value <- if(!is.null(models$profile_value)) {
+    bp_predict(models$profile_value,d,models$value_histories,'C')
+  } else if(!is.null(frozen_legacy)) frozen_legacy$q_bip else {
+    exp(hr_eta(models$legacy$value$model,pc_transform(d,models$legacy$value$prep)$data))
   }
   states <- pc_branch_states(read_re_baseline()); k <- match(pc_state(d),states$re288_state);stopifnot(!anyNA(k))
   out <- h7_branches(contact,bip,tip,value,states[k])
@@ -150,4 +168,7 @@ h7_run <- function() {
     components=c(contact='xgboost',bip_given_contact='xgboost',take='xgboost_joint_actors_weekly',tip='active_v6_gam',bip_value='active_v6_gam'),
     limitation='exploratory_2024_2025; conditional_game_sampling_only'),file.path(H7_MODELS,'manifest.rds'))
 }
-if(sys.nframe()==0L)h7_run()
+if(sys.nframe()==0L) {
+  source('current_hitter_stat.R')
+  activate_hitter_profiles()
+}
